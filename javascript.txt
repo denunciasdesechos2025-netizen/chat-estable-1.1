@@ -15,9 +15,9 @@ const state = {
 const chatArea = document.getElementById('chatArea');
 const inputArea = document.getElementById('inputArea');
 
-// Venice AI Configuration from config.js
-const VENICE_API_URL = CONFIG.VENICE_API_URL;
-const VENICE_API_KEY = CONFIG.VENICE_API_KEY;
+// Venice AI Configuration
+const VENICE_API_URL = 'https://api.venice.ai/api/v1/chat/completions';
+const VENICE_API_KEY = 'TU_API_KEY'; // Reemplaza con tu clave de API de Venice
 
 // Initial Greeting
 window.onload = () => {
@@ -40,20 +40,20 @@ async function callVeniceAI(prompt) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${VENICE_API_KEY}`
+                'Authorization': `Bearer \${VENICE_API_KEY}`
             },
             body: JSON.stringify({
-                model: CONFIG.AI_MODEL || 'gpt-4o',
+                model: 'gpt-4o',
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres un experto asistente virtual de la Alcaldía de San Salvador Este. Tu objetivo es ayudar a los ciudadanos con reportes de baches, recolección de basura y otros temas urbanos. Responde de manera servicial, empática y profesional siempre en español.'
+                        content: 'Eres un asistente de la Alcaldía de San Salvador Este que ayuda a los ciudadanos con sus denuncias. Responde de manera amable y profesional en español.'
                     },
                     ...state.conversationHistory,
                     { role: 'user', content: prompt }
                 ],
                 temperature: 0.7,
-                max_tokens: 800
+                max_tokens: 1000
             })
         });
 
@@ -78,14 +78,14 @@ function addMessage(text, sender) {
     msgDiv.classList.add('message', sender);
     msgDiv.innerText = text;
     chatArea.appendChild(msgDiv);
-
+    
     // Add to conversation history for AI context
     if (sender === 'user') {
         state.conversationHistory.push({ role: 'user', content: text });
     } else if (sender === 'bot') {
         state.conversationHistory.push({ role: 'assistant', content: text });
     }
-
+    
     scrollToBottom();
 }
 
@@ -115,17 +115,17 @@ function simulateBotResponse(text, nextAction, delay = 600) {
 // Function to handle AI chat mode
 async function handleAIChat(userMessage) {
     showTyping();
-
+    
     try {
         const aiResponse = await callVeniceAI(userMessage);
         hideTyping();
         addMessage(aiResponse, 'bot');
-
+        
         // Check if AI detected a complaint intent
-        if (aiResponse.toLowerCase().includes('denuncia') ||
-            aiResponse.toLowerCase().includes('reportar') ||
+        if (aiResponse.toLowerCase().includes('denuncia') || 
+            aiResponse.toLowerCase().includes('reportar') || 
             aiResponse.toLowerCase().includes('problema')) {
-
+            
             setTimeout(() => {
                 addMessage("¿Deseas formalizar una denuncia con los datos que has proporcionado?", 'bot');
                 renderOptions([
@@ -160,20 +160,20 @@ function renderTextInput(placeholder, inputType = 'text', btnIcon = '➤') {
     input.className = 'chat-input';
     input.type = inputType;
     input.placeholder = placeholder;
-
+    
     // Auto-focus logic for better UX
     setTimeout(() => input.focus(), 100);
-
+    
     const btn = document.createElement('button');
     btn.className = 'send-btn';
     btn.innerHTML = btnIcon;
     btn.onclick = () => handleTextInput(input.value);
-
+    
     // Allow Enter key to submit
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleTextInput(input.value);
     });
-
+    
     container.appendChild(input);
     container.appendChild(btn);
     inputArea.appendChild(container);
@@ -188,7 +188,7 @@ function renderLocationRequest() {
     btn.style.flex = "1";
     btn.innerHTML = '📍 Compartir mi ubicación actual';
     btn.onclick = () => getUserLocation();
-
+    
     const skipBtn = document.createElement('button');
     skipBtn.className = 'option-btn';
     skipBtn.innerText = 'Escribir manual';
@@ -196,7 +196,7 @@ function renderLocationRequest() {
         state.data.locationLink = "No compartida / Manual";
         nextStep();
     };
-
+    
     inputArea.appendChild(btn);
     inputArea.appendChild(skipBtn);
 }
@@ -206,11 +206,11 @@ function getUserLocation() {
         alert("Geolocalización no soportada por su navegador.");
         return;
     }
-
+    
     addMessage("Obteniendo ubicación...", 'user');
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            const link = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+            const link = `https://www.google.com/maps?q=${position.coords.latitude},\${position.coords.longitude}`;
             state.data.locationLink = link;
             simulateBotResponse("¡Ubicación recibida gracias! 📍", () => nextStep());
         },
@@ -225,7 +225,7 @@ function getUserLocation() {
 function handleOptionClick(value, displayText) {
     addMessage(displayText, 'user');
     inputArea.innerHTML = '';
-
+    
     // Handle AI chat mode
     if (value === 'chat_with_ai') {
         state.aiChatMode = true;
@@ -234,7 +234,7 @@ function handleOptionClick(value, displayText) {
         renderTextInput("Escribe tu pregunta aquí...");
         return;
     }
-
+    
     // Handle back to menu
     if (value === 'back_to_menu') {
         state.aiChatMode = false;
@@ -251,117 +251,3 @@ function handleOptionClick(value, displayText) {
         }, 800);
         return;
     }
-
-    // Handle formalize complaint
-    if (value === 'formalize_complaint') {
-        state.aiChatMode = false;
-        state.step = 2; // Jump to address
-        addMessage("Perfecto, vamos a formalizar tu reporte.", 'bot');
-        setTimeout(() => {
-            addMessage("¿Cuál es la dirección exacta del problema?", 'bot');
-            renderTextInput("Ej: Calle principal, frente a parque...");
-        }, 600);
-        return;
-    }
-
-    if (value === 'just_consulting') {
-        addMessage("Entendido. Si necesitas algo más, aquí estaré.", 'bot');
-        renderTextInput("Escribe tu pregunta aquí...");
-        return;
-    }
-
-    // Default flow
-    state.data.category = value;
-    nextStep();
-}
-
-function handleTextInput(text) {
-    if (!text.trim()) return;
-
-    addMessage(text, 'user');
-
-    if (state.aiChatMode) {
-        handleAIChat(text);
-        return;
-    }
-
-    switch (state.step) {
-        case 2:
-            state.data.address = text;
-            break;
-        case 4:
-            state.data.name = text;
-            break;
-        case 5:
-            state.data.phone = text;
-            break;
-        case 6:
-            state.data.description = text;
-            break;
-    }
-    nextStep();
-}
-
-function nextStep() {
-    state.step++;
-
-    switch (state.step) {
-        case 1:
-            simulateBotResponse("¿Dónde se encuentra el problema? Puedes compartir tu ubicación o escribir la dirección.", renderLocationRequest);
-            break;
-        case 2:
-            simulateBotResponse("¿Cuál es la dirección o punto de referencia?", () => renderTextInput("Escriba la dirección aquí..."));
-            break;
-        case 3:
-            simulateBotResponse("Gracias. Ahora, ¿cuál es tu nombre completo?", () => renderTextInput("Escriba su nombre aquí..."));
-            break;
-        case 4:
-            simulateBotResponse("¿A qué número de teléfono podemos contactarte?", () => renderTextInput("Escriba su teléfono aquí...", 'tel'));
-            break;
-        case 5:
-            simulateBotResponse("Por último, describe brevemente el problema (ej: bache profundo, basura acumulada por 3 días).", () => renderTextInput("Escriba la descripción aquí..."));
-            break;
-        case 6:
-            finishReport();
-            break;
-    }
-}
-
-function finishReport() {
-    const summary = `📝 *Resumen de Denuncia*
-*Categoría:* ${state.data.category}
-*Dirección:* ${state.data.address}
-*Ubicación:* ${state.data.locationLink}
-*Nombre:* ${state.data.name}
-*Teléfono:* ${state.data.phone}
-*Descripción:* ${state.data.description}`;
-
-    showTyping();
-    setTimeout(() => {
-        hideTyping();
-        addMessage("¡Gracias! He recopilado toda la información. Aquí tienes un resumen:", 'bot');
-        setTimeout(() => {
-            addMessage(summary, 'bot');
-            setTimeout(() => {
-                const whatsappMsg = encodeURIComponent(summary);
-                const whatsappUrl = `https://wa.me/50370901299?text=${whatsappMsg}`;
-
-                renderOptions([
-                    { text: "Confirmar y Enviar a WhatsApp 📱", value: 'send_whatsapp', display: "Enviar Reporte" },
-                    { text: "Corregir información", value: 'back_to_menu', display: "Reiniciar Chat" }
-                ]);
-
-                // Redefine WhatsApp button click
-                document.querySelectorAll('.option-btn').forEach(btn => {
-                    if (btn.innerText === "Confirmar y Enviar a WhatsApp 📱") {
-                        btn.onclick = () => {
-                            window.open(whatsappUrl, '_blank');
-                            addMessage("Enviando reporte a WhatsApp...", 'user');
-                            simulateBotResponse("¡Reporte enviado con éxito! Un agente le dará seguimiento pronto. ¡Que tenga un feliz día!");
-                        };
-                    }
-                });
-            }, 800);
-        }, 600);
-    }, 1000);
-}
